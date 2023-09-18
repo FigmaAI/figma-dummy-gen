@@ -1,26 +1,25 @@
-figma.showUI(__html__);
+// controller.ts
 
-figma.ui.onmessage = (msg) => {
-  if (msg.type === 'create-rectangles') {
-    const nodes = [];
+figma.showUI(__html__, { width: 360, height: 480 });
 
-    for (let i = 0; i < msg.count; i++) {
-      const rect = figma.createRectangle();
-      rect.x = i * 150;
-      rect.fills = [{ type: 'SOLID', color: { r: 1, g: 0.5, b: 0 } }];
-      figma.currentPage.appendChild(rect);
-      nodes.push(rect);
-    }
+figma.ui.onmessage = async (msg) => {
+  if (msg.type === 'get-component-set') {
+    console.log('get-component-set');
+    const nodes = figma.root.findAll((node) => node.type === 'COMPONENT_SET') as ComponentSetNode[];
 
-    figma.currentPage.selection = nodes;
-    figma.viewport.scrollAndZoomIntoView(nodes);
+    
 
-    // This is how figma responds back to the ui
+    const componentSetData = nodes.map((node) => {
+      return {
+        id: node.id,
+        name: node.name,
+        componentPropertyDefinitions: node.componentPropertyDefinitions
+      };
+    });
+
     figma.ui.postMessage({
-      type: 'create-rectangles',
-      message: `Created ${msg.count} Rectangles`,
+      type: 'component-set-data',
+      data: componentSetData
     });
   }
-
-  figma.closePlugin();
 };

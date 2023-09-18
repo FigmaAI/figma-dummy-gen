@@ -1,45 +1,45 @@
+// App.tsx
 import React from 'react';
-import logo from '../assets/logo.svg';
-import '../styles/ui.css';
+import { List, ListItem, ListItemText, AppBar, Toolbar, Typography, IconButton, Box } from '@mui/material';
+import CloudSyncIcon from '@mui/icons-material/CloudSync';
 
 function App() {
-  const textbox = React.useRef<HTMLInputElement>(undefined);
+  const [rows, setRows] = React.useState([]);
 
-  const countRef = React.useCallback((element: HTMLInputElement) => {
-    if (element) element.value = '5';
-    textbox.current = element;
-  }, []);
-
-  const onCreate = () => {
-    const count = parseInt(textbox.current.value, 10);
-    parent.postMessage({ pluginMessage: { type: 'create-rectangles', count } }, '*');
-  };
-
-  const onCancel = () => {
-    parent.postMessage({ pluginMessage: { type: 'cancel' } }, '*');
+  const getComponentSet = () => {
+    parent.postMessage({ pluginMessage: { type: 'get-component-set' } }, '*');
   };
 
   React.useEffect(() => {
-    // This is how we read messages sent from the plugin controller
     window.onmessage = (event) => {
-      const { type, message } = event.data.pluginMessage;
-      if (type === 'create-rectangles') {
-        console.log(`Figma Says: ${message}`);
+      const { type, data } = event.data.pluginMessage;
+      if (type === 'component-set-data') {
+        setRows(data);
       }
     };
   }, []);
 
   return (
-    <div>
-      <img src={logo} />
-      <h2>Rectangle Creator</h2>
-      <p>
-        Count: <input ref={countRef} />
-      </p>
-      <button id="create" onClick={onCreate}>
-        Create
-      </button>
-      <button onClick={onCancel}>Cancel</button>
+    <div style={{ paddingBottom: '56px' }}>
+      <List>
+        {rows.map((item, index) => (
+          <ListItem key={index}>
+            <Box border={1} borderRadius={4} p={1} width="100%">
+              <ListItemText primary={item.name} secondary={`Properties: ${item.componentPropertyDefinitions ? Object.keys(item.componentPropertyDefinitions).length : 0}`} />
+            </Box>
+          </ListItem>
+        ))}
+      </List>
+      <AppBar position="fixed" color="primary" style={{ top: 'auto', bottom: 0 }}>
+        <Toolbar>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            Total Items: {rows.length}
+          </Typography>
+          <IconButton color="inherit" onClick={getComponentSet}>
+            <CloudSyncIcon />
+          </IconButton>
+        </Toolbar>
+      </AppBar>
     </div>
   );
 }
