@@ -1,5 +1,4 @@
 // controller.ts
-
 figma.showUI(__html__, { width: 800, height: 600 });
 
 figma.ui.onmessage = async (msg) => {
@@ -53,6 +52,8 @@ function getNodePath(node: SceneNode): string {
     return node.name;
   }
 }
+
+
 
 // Function to generate all combinations of properties for a component set
 function generatePropertyCombinations(componentPropertyDefinitions) {
