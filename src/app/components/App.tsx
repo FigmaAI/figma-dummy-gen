@@ -35,17 +35,11 @@ function App() {
   };
 
   const generateDummyForSelectedRows = () => {
-    const remainingRows = [...rowSelectionModel];
-
-    const processNextRow = () => {
-      const nodeId = remainingRows.shift();
-      if (nodeId) {
-        const textDummy = rows.find(row => row.id === nodeId)?.textDummy || 1;
-        parent.postMessage({ pluginMessage: { type: 'gen-dummy', nodeId, textDummy } }, '*');
-      }
-    };
-
-    processNextRow();
+    const nodeId = rowSelectionModel[0];
+    if (nodeId) {
+      const textDummy = rows.find((row) => row.id === nodeId)?.textDummy || 1;
+      parent.postMessage({ pluginMessage: { type: 'gen-dummy', nodeId, textDummy } }, '*');
+    }
   };
 
   useEffect(() => {
@@ -67,9 +61,10 @@ function App() {
         setRows(updatedRows);
       } else if (type === 'gen-dummy-done' && nodeId) {
         handleDelete(nodeId);
+        generateDummyForSelectedRows(); // Generate dummy for the next row
       }
     };
-  }, [rows]);
+  }, [rows, rowSelectionModel]); // Added rowSelectionModel to the dependency array
 
   const columns = [
     { field: 'path', headerName: 'Path', flex: 2 },
@@ -98,7 +93,6 @@ function App() {
             disabled={!hasTextNode}
             onClick={(e) => e.stopPropagation()}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleTextDummyChange(e, params.row.id)}
-
           />
         );
       },
@@ -116,7 +110,8 @@ function App() {
       field: 'totalDesigns',
       headerName: 'Total',
       width: 100,
-      valueGetter: (params) => (params.row.possibleDesigns || 1) * (params.row.textDummy || 1) * (params.row.textNodeCount || 1),
+      valueGetter: (params) =>
+        (params.row.possibleDesigns || 1) * (params.row.textDummy || 1) * (params.row.textNodeCount || 1),
     },
     {
       field: 'actions',
@@ -153,12 +148,7 @@ function App() {
 
     return (
       <GridToolbarContainer style={{ justifyContent: 'flex-end' }}>
-        <Button
-          variant="text"
-          color="primary"
-          startIcon={<AutoFixHighIcon />}
-          onClick={generateDummyForSelectedRows}
-        >
+        <Button variant="text" color="primary" startIcon={<AutoFixHighIcon />} onClick={generateDummyForSelectedRows}>
           Generate Dummy
         </Button>
       </GridToolbarContainer>
