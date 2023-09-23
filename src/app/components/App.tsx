@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Button, IconButton, Box, TextField } from '@mui/material';
-import { DataGrid, GridRowSelectionModel, GridToolbarContainer } from '@mui/x-data-grid';
+import { Button, IconButton, Box, TextField, Tooltip } from '@mui/material';
+import { DataGrid, GridRowSelectionModel, GridToolbarContainer, GridColDef, GridCellParams } from '@mui/x-data-grid';
 import { OpenInNew as OpenInNewIcon, Delete as DeleteIcon, AutoFixHigh as AutoFixHighIcon } from '@mui/icons-material';
 
 interface Row {
@@ -66,18 +66,25 @@ function App() {
     };
   }, [rows, rowSelectionModel]); // Added rowSelectionModel to the dependency array
 
-  const columns = [
-    { field: 'path', headerName: 'Path', flex: 2 },
-    { field: 'possibleDesigns', headerName: 'Variants', width: 100 },
+  const columns: GridColDef[] = [
     {
-      field: 'plusSign',
-      headerName: '+',
-      width: 50,
-      renderCell: () => '+',
-      sortable: false,
-      filterable: false,
-      disableClickEventBubbling: true,
+      field: 'path',
+      headerName: 'Path',
+      flex: 1,
+      renderCell: (params: GridCellParams) => (
+        <a
+          href="#"
+          onClick={(e) => {
+            e.stopPropagation(); // Prevent the event from bubbling up
+            e.preventDefault();
+            parent.postMessage({ pluginMessage: { type: 'navigate', nodeId: params.row.id } }, '*');
+          }}
+        >
+          {params.value as string}
+        </a>
+      ),
     },
+    { field: 'possibleDesigns', headerName: 'Variants', width: 100 },
     {
       field: 'textDummy',
       headerName: 'Dummy',
@@ -98,20 +105,19 @@ function App() {
       },
     },
     {
-      field: 'timesSign',
-      headerName: 'X',
-      width: 50,
-      renderCell: (params) => `X ${params.row.textNodeCount || 1}`,
-      sortable: false,
-      filterable: false,
-      disableClickEventBubbling: true,
-    },
-    {
       field: 'totalDesigns',
       headerName: 'Total',
       width: 100,
       valueGetter: (params) =>
         (params.row.possibleDesigns || 1) * (params.row.textDummy || 1) * (params.row.textNodeCount || 1),
+      renderCell: (params) => {
+        const tooltipText = `Total Designs = Variants(${params.row.possibleDesigns || 1}) * Dummy(${params.row.textDummy || 1}) * Text Node Count(${params.row.textNodeCount || 1})`;
+        return (
+          <Tooltip title={tooltipText}>
+            <Box>{params.value}</Box>
+          </Tooltip>
+        );
+      },
     },
     {
       field: 'actions',

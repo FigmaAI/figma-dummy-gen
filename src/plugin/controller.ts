@@ -10,29 +10,46 @@ figma.ui.onmessage = async (msg) => {
 
     const nodes = figma.root.findAll((node) => node.type === 'COMPONENT_SET') as ComponentSetNode[];
 
-    const componentSetData = nodes.map((node) => {
+    const componentSetData = nodes
+      .filter((node) => node.visible && !node.name.startsWith('_') && !node.name.startsWith('.'))
+      .map((node) => {
+        try {
+          const possibleDesigns = generatePropertyCombinations(node.componentPropertyDefinitions).length;
+          const textNodeCount = calculateTextNodeCount(node.componentPropertyDefinitions);
 
-      const possibleDesigns = generatePropertyCombinations(node.componentPropertyDefinitions).length;
-      const textNodeCount = calculateTextNodeCount(node.componentPropertyDefinitions);
+          // if node name contains 'Button', then get the nested instances and console.log their componentProperties
+          if (node.name.includes('Button')) {
+            const nestedInstances = findExposedNestedInstances(node);
+            nestedInstances.forEach((instance) => {
+              const originComponentSet = instance.mainComponent.parent as ComponentSetNode;
+              console.log(`${node.name} > ${instance.name} >`, originComponentSet.componentPropertyDefinitions);
+            });
+          }
 
-      return {
-        id: node.id,
-        name: node.name,
-        path: getNodePath(node),
-        possibleDesigns,
-        textNodeCount,
-        documentationLinks: node.documentationLinks,
-        key: node.key,
-        width: node.width,
-        height: node.height,
-      };
-    });
+          return {
+            id: node.id,
+            name: node.name,
+            path: getNodePath(node),
+            possibleDesigns,
+            textNodeCount,
+            documentationLinks: node.documentationLinks,
+            key: node.key,
+            width: node.width,
+            height: node.height,
+          };
+        } catch (error) {
+          console.error(`Error getting component property definitions for "${node.name}": ${error.message}`);
+          return null; // Return null if there was an error
+        }
+      })
+      .filter((item) => item !== null); // Filter out any null items
 
     figma.ui.postMessage({
       type: 'component-set-data',
       data: componentSetData,
     });
   }
+
   // Handle 'gen-dummy' message
   else if (msg.type === 'gen-dummy') {
     // Excute the handleGenDummy function. If the function is async, await it. if it done, close the plugin. if it failed, show the error message.
@@ -43,6 +60,11 @@ figma.ui.onmessage = async (msg) => {
       figma.notify('Dummy data generation failed!', { error: true, timeout: 5000 });
       console.error(error);
     }
+  } else if (msg.type === 'navigate') {
+    const node = figma.getNodeById(msg.nodeId) as ComponentSetNode;
+    const page = getParentPage(node);
+    figma.currentPage = page;
+    figma.viewport.scrollAndZoomIntoView([node]);
   }
 };
 
@@ -63,11 +85,32 @@ function getNodePath(node: SceneNode): string {
 }
 
 // Function to generate all combinations of properties for a component set
-function generatePropertyCombinations(componentPropertyDefinitions, textDummyCount?: number) {
+function generatePropertyCombinations(
+  componentPropertyDefinitions,
+  textDummyCount?: number,
+  nestedInstances?: InstanceNode[]
+) {
   let combinations = [{}];
 
-  for (const property in componentPropertyDefinitions) {
-    const { type, variantOptions } = componentPropertyDefinitions[property];
+  // Generate combinations for the component set's properties
+  combinations = generateCombinationsForProperties(componentPropertyDefinitions, textDummyCount, combinations);
+
+  if (nestedInstances) {
+    // Generate combinations for each nested instance's properties
+    nestedInstances.forEach((instance) => {
+      combinations = generateCombinationsForProperties(instance.componentProperties, textDummyCount, combinations);
+    });
+  }
+
+  return combinations;
+}
+
+// Function to generate all combinations of properties for a component set
+function generateCombinationsForProperties(propertyDefinitions, textDummyCount: number, prevCombinations: any[]) {
+  let combinations = [...prevCombinations];
+
+  for (const property in propertyDefinitions) {
+    const { type, variantOptions } = propertyDefinitions[property];
     const newCombinations = [];
 
     if (type === 'BOOLEAN') {
@@ -87,7 +130,7 @@ function generatePropertyCombinations(componentPropertyDefinitions, textDummyCou
 
     if (type === 'TEXT' && textDummyCount) {
       // console.log(componentPropertyDefinitions[property])
-      const defaultValue = componentPropertyDefinitions[property].defaultValue;
+      const defaultValue = propertyDefinitions[property].defaultValue;
       const defaultValueType = determineDefaultValueType(defaultValue);
       const numWords = defaultValue.split(' ').length;
       const averageWordLength = Math.round(defaultValue.length / numWords);
@@ -227,4 +270,32 @@ function generateDummyText(type: string, count: number, numWords: number, averag
   }
 
   return dummyTexts;
+}
+
+function getParentPage(node: BaseNode): PageNode {
+  let parent = node.parent;
+  if (node.parent) {
+    while (parent && parent.type !== 'PAGE') {
+      parent = parent.parent;
+    }
+    return parent as PageNode;
+  }
+  return figma.currentPage;
+}
+
+// Recursive function to find all exposed nested instances in a node
+function findExposedNestedInstances(node: SceneNode): InstanceNode[] {
+  let instances: InstanceNode[] = [];
+
+  if (node.type === 'INSTANCE') {
+    instances = [...instances, ...node.exposedInstances];
+  }
+
+  if ('children' in node) {
+    for (const child of node.children) {
+      instances = [...instances, ...findExposedNestedInstances(child)];
+    }
+  }
+
+  return instances;
 }
