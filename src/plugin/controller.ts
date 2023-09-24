@@ -4,69 +4,85 @@ import Chance from 'chance';
 
 figma.showUI(__html__, { width: 800, height: 600 });
 
+// Function to handle different types of messages
 figma.ui.onmessage = async (msg) => {
-  if (msg.type === 'get-component-set') {
-    console.log('get-component-set');
-
-    const nodes = figma.root.findAll((node) => node.type === 'COMPONENT_SET') as ComponentSetNode[];
-
-    const componentSetData = nodes
-      .filter((node) => node.visible && !node.name.startsWith('_') && !node.name.startsWith('.'))
-      .map((node) => {
-        try {
-          const possibleDesigns = generatePropertyCombinations(node.componentPropertyDefinitions).length;
-          const textNodeCount = calculateTextNodeCount(node.componentPropertyDefinitions);
-
-          // if node name contains 'Button', then get the nested instances and console.log their componentProperties
-          if (node.name.includes('Button')) {
-            const nestedInstances = findExposedNestedInstances(node);
-            nestedInstances.forEach((instance) => {
-              const originComponentSet = instance.mainComponent.parent as ComponentSetNode;
-              console.log(`${node.name} > ${instance.name} >`, originComponentSet.componentPropertyDefinitions);
-            });
-          }
-
-          return {
-            id: node.id,
-            name: node.name,
-            path: getNodePath(node),
-            possibleDesigns,
-            textNodeCount,
-            documentationLinks: node.documentationLinks,
-            key: node.key,
-            width: node.width,
-            height: node.height,
-          };
-        } catch (error) {
-          console.error(`Error getting component property definitions for "${node.name}": ${error.message}`);
-          return null; // Return null if there was an error
-        }
-      })
-      .filter((item) => item !== null); // Filter out any null items
-
-    figma.ui.postMessage({
-      type: 'component-set-data',
-      data: componentSetData,
-    });
-  }
-
-  // Handle 'gen-dummy' message
-  else if (msg.type === 'gen-dummy') {
-    // Excute the handleGenDummy function. If the function is async, await it. if it done, close the plugin. if it failed, show the error message.
-    try {
+  switch (msg.type) {
+    case 'get-component-set':
+      handleGetComponentSet();
+      break;
+    case 'gen-dummy':
       handleGenDummy(msg);
-      // figma.closePlugin();
-    } catch (error) {
-      figma.notify('Dummy data generation failed!', { error: true, timeout: 5000 });
-      console.error(error);
-    }
-  } else if (msg.type === 'navigate') {
-    const node = figma.getNodeById(msg.nodeId) as ComponentSetNode;
-    const page = getParentPage(node);
-    figma.currentPage = page;
-    figma.viewport.scrollAndZoomIntoView([node]);
+      break;
+    case 'navigate':
+      handleNavigate(msg);
+      break;
   }
 };
+
+// Function to handle 'get-component-set' message
+function handleGetComponentSet() {
+  console.log('get-component-set');
+
+  const nodes = figma.root.findAll((node) => node.type === 'COMPONENT_SET') as ComponentSetNode[];
+
+  const componentSetData = nodes
+    .filter(isVisibleAndNotPrivate)
+    .map(getComponentSetData)
+    .filter((item) => item !== null); // Filter out any null items
+
+  figma.ui.postMessage({
+    type: 'component-set-data',
+    data: componentSetData,
+  });
+}
+
+// Function to check if a node is visible and not private
+function isVisibleAndNotPrivate(node) {
+  return node.visible && !node.name.startsWith('_') && !node.name.startsWith('.');
+}
+
+// Function to get the data for a component set
+function getComponentSetData(node) {
+  try {
+    const textNodeCount = calculateTextNodeCount(node.componentPropertyDefinitions);
+    const nestedInstances = findExposedNestedInstances(node) || [];
+    const nestedInstanceCount = nestedInstances ? nestedInstances.length : 0;
+    const nestedInstanceCombinationsCount = calculateNestedInstanceCombinationsCount(nestedInstances);
+    const possibleDesigns = generatePropertyCombinations(node.componentPropertyDefinitions).length;
+
+    return {
+      id: node.id,
+      name: node.name,
+      path: getNodePath(node),
+      possibleDesigns,
+      textNodeCount,
+      nestedInstanceCount,
+      nestedInstanceCombinationsCount,
+      documentationLinks: node.documentationLinks,
+      key: node.key,
+      width: node.width,
+      height: node.height,
+    };
+  } catch (error) {
+    console.error(`Error getting component property definitions for "${node.name}": ${error.message}`);
+    return null; // Return null if there was an error
+  }
+}
+
+// Function to calculate the total number of combinations for nested instances
+function calculateNestedInstanceCombinationsCount(nestedInstances) {
+  return nestedInstances
+    ? nestedInstances.reduce((total, instance) => {
+        const mainComponent = instance.mainComponent;
+        if (mainComponent.remote) {
+          console.log(`Skipping remote instance "${instance.name}"`);
+          return total;
+        }
+        const originComponentSet = mainComponent.parent as ComponentSetNode;
+        return total + generatePropertyCombinations(originComponentSet.componentPropertyDefinitions).length;
+      }, 0)
+    : 0;
+}
 
 // Recursive function to get the path of a node
 function getNodePath(node: SceneNode): string {
@@ -129,7 +145,6 @@ function generateCombinationsForProperties(propertyDefinitions, textDummyCount: 
     }
 
     if (type === 'TEXT' && textDummyCount) {
-      // console.log(componentPropertyDefinitions[property])
       const defaultValue = propertyDefinitions[property].defaultValue;
       const defaultValueType = determineDefaultValueType(defaultValue);
       const numWords = defaultValue.split(' ').length;
@@ -298,4 +313,12 @@ function findExposedNestedInstances(node: SceneNode): InstanceNode[] {
   }
 
   return instances;
+}
+
+// Function to handle 'navigate' message
+function handleNavigate(msg) {
+  const node = figma.getNodeById(msg.nodeId) as ComponentSetNode;
+  const page = getParentPage(node);
+  figma.currentPage = page;
+  figma.viewport.scrollAndZoomIntoView([node]);
 }

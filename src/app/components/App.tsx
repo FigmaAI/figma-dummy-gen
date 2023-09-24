@@ -56,6 +56,8 @@ function App() {
             possibleDesigns: item.possibleDesigns,
             textNodeCount: item.textNodeCount,
             documentationLinks: item.documentationLinks,
+            nestedInstanceCount: item.nestedInstanceCount,
+            nestedInstanceCombinationsCount: item.nestedInstanceCombinationsCount,
           };
         });
         setRows(updatedRows);
@@ -84,11 +86,12 @@ function App() {
         </a>
       ),
     },
-    { field: 'possibleDesigns', headerName: 'Variants', width: 100 },
+    { field: 'possibleDesigns', headerName: 'Variants', width: 80 },
+    {field: 'nestedInstanceCombinationsCount' , headerName: 'Nested', width: 80},
     {
       field: 'textDummy',
       headerName: 'Dummy',
-      width: 100,
+      width: 96,
       renderCell: (params) => {
         const hasTextNode = params.row.textNodeCount > 0;
         return (
@@ -107,7 +110,7 @@ function App() {
     {
       field: 'totalDesigns',
       headerName: 'Total',
-      width: 100,
+      width: 80,
       valueGetter: (params) =>
         (params.row.possibleDesigns || 1) * (params.row.textDummy || 1) * (params.row.textNodeCount || 1),
       renderCell: (params) => {
@@ -123,7 +126,7 @@ function App() {
       field: 'actions',
       headerName: 'Actions',
       sortable: false,
-      width: 100,
+      width: 96,
       renderCell: (params) => {
         const hasDocumentationLinks = params.row.documentationLinks.length > 0;
         return (
