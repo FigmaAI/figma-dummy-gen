@@ -19,6 +19,11 @@ figma.ui.onmessage = async (msg) => {
   }
 };
 
+// Function to check if a node is visible and not private
+function isVisibleAndNotPrivate(node) {
+  return node.visible && !node.name.startsWith('_') && !node.name.startsWith('.');
+}
+
 // Function to handle 'get-component-set' message
 function handleGetComponentSet() {
   console.log('get-component-set');
@@ -36,52 +41,31 @@ function handleGetComponentSet() {
   });
 }
 
-// Function to check if a node is visible and not private
-function isVisibleAndNotPrivate(node) {
-  return node.visible && !node.name.startsWith('_') && !node.name.startsWith('.');
-}
-
-// Function to get the data for a component set
 function getComponentSetData(node) {
   try {
-    const textNodeCount = calculateTextNodeCount(node.componentPropertyDefinitions);
-    const nestedInstances = findExposedNestedInstances(node) || [];
-    const nestedInstanceCount = nestedInstances ? nestedInstances.length : 0;
-    const nestedInstanceCombinationsCount = calculateNestedInstanceCombinationsCount(nestedInstances);
-    const possibleDesigns = generatePropertyCombinations(node.componentPropertyDefinitions).length;
+    const nestedInstancePropertyCombinations = calculateNestedInstanceCombinationsCount(node, 1);
+    const possibleDesigns = generateCombinationsFromDefinitions(node.componentPropertyDefinitions, 1, [{}]);
+    const textNodeCount = countTextNode(
+      node.componentPropertyDefinitions,
+      nestedInstancePropertyCombinations.map((combination) => JSON.parse(combination))
+    );
 
     return {
       id: node.id,
       name: node.name,
       path: getNodePath(node),
-      possibleDesigns,
-      textNodeCount,
-      nestedInstanceCount,
-      nestedInstanceCombinationsCount,
+      possibleDesigns: possibleDesigns.length,
+      nestedInstanceDesignCount: nestedInstancePropertyCombinations.length || null,
       documentationLinks: node.documentationLinks,
       key: node.key,
-      width: node.width,
-      height: node.height,
+      textDummy: 1,
+      hasTextVariant: textNodeCount > 0 ? true : false,
+      textNodeCount,
     };
   } catch (error) {
     console.error(`Error getting component property definitions for "${node.name}": ${error.message}`);
-    return null; // Return null if there was an error
+    return null;
   }
-}
-
-// Function to calculate the total number of combinations for nested instances
-function calculateNestedInstanceCombinationsCount(nestedInstances) {
-  return nestedInstances
-    ? nestedInstances.reduce((total, instance) => {
-        const mainComponent = instance.mainComponent;
-        if (mainComponent.remote) {
-          console.log(`Skipping remote instance "${instance.name}"`);
-          return total;
-        }
-        const originComponentSet = mainComponent.parent as ComponentSetNode;
-        return total + generatePropertyCombinations(originComponentSet.componentPropertyDefinitions).length;
-      }, 0)
-    : 0;
 }
 
 // Recursive function to get the path of a node
@@ -100,152 +84,103 @@ function getNodePath(node: SceneNode): string {
   }
 }
 
-// Function to generate all combinations of properties for a component set
-function generatePropertyCombinations(
-  componentPropertyDefinitions,
-  textDummyCount?: number,
-  nestedInstances?: InstanceNode[]
-) {
-  let combinations = [{}];
-
-  // Generate combinations for the component set's properties
-  combinations = generateCombinationsForProperties(componentPropertyDefinitions, textDummyCount, combinations);
-
-  if (nestedInstances) {
-    // Generate combinations for each nested instance's properties
-    nestedInstances.forEach((instance) => {
-      combinations = generateCombinationsForProperties(instance.componentProperties, textDummyCount, combinations);
-    });
-  }
-
-  return combinations;
-}
-
-// Function to generate all combinations of properties for a component set
-function generateCombinationsForProperties(propertyDefinitions, textDummyCount: number, prevCombinations: any[]) {
-  let combinations = [...prevCombinations];
-
-  for (const property in propertyDefinitions) {
-    const { type, variantOptions } = propertyDefinitions[property];
-    const newCombinations = [];
-
-    if (type === 'BOOLEAN') {
-      for (const prevCombination of combinations) {
-        newCombinations.push({ ...prevCombination, [property]: true });
-        newCombinations.push({ ...prevCombination, [property]: false });
-      }
-    }
-
-    if (type === 'VARIANT') {
-      for (const prevCombination of combinations) {
-        for (const option of variantOptions) {
-          newCombinations.push({ ...prevCombination, [property]: option });
-        }
-      }
-    }
-
-    if (type === 'TEXT' && textDummyCount) {
-      const defaultValue = propertyDefinitions[property].defaultValue;
-      const defaultValueType = determineDefaultValueType(defaultValue);
-      const numWords = defaultValue.split(' ').length;
-      const averageWordLength = Math.round(defaultValue.length / numWords);
-      const dummyTexts = generateDummyText(defaultValueType, textDummyCount, numWords, averageWordLength);
-
-      for (const prevCombination of combinations) {
-        for (const dummyText of dummyTexts) {
-          newCombinations.push({ ...prevCombination, [property]: dummyText });
-        }
-      }
-    }
-
-    if (newCombinations.length > 0) {
-      combinations = newCombinations;
-    }
-  }
-
-  return combinations;
-}
-
-// Function to calculate the number of text nodes in a component set
-function calculateTextNodeCount(componentPropertyDefinitions) {
-  let count = 0;
-
-  for (const property in componentPropertyDefinitions) {
-    const { type } = componentPropertyDefinitions[property];
-
-    if (type === 'TEXT') {
-      count++;
-    }
-  }
-
-  return count;
-}
-
 // Function to handle 'gen-dummy' message
 function handleGenDummy({ nodeId, textDummy }) {
+  console.log('gen-dummy');
   const node = figma.getNodeById(nodeId) as ComponentSetNode;
 
-  // Get the current page
+  // Get defaults
   const currentPage = figma.currentPage;
+  const component = node.children[0] as ComponentNode;
+  const instance = component.createInstance() as InstanceNode;
+  const { width, height } = node;
 
-  // Get the last position from the plugin data
+  // Get the last position from the plugin datas
   let x = Number(currentPage.getPluginData('x')) || 0;
   let y = Number(currentPage.getPluginData('y')) || 0;
 
-  // Get the width and height of the component set
-  const { width, height } = node;
-
   // Generate all combinations of variant properties
-  const variantCombinations = generatePropertyCombinations(node.componentPropertyDefinitions, textDummy);
-
-  console.log(variantCombinations);
+  const variantCombinations = generateCombinationsFromDefinitions(node.componentPropertyDefinitions, textDummy, [{}]);
 
   // Create an instance for each combination of variant properties
-  for (const combination of variantCombinations) {
-    // Check if node.children array is not empty
-    if (!node.children || node.children.length === 0) {
-      console.error('Error: node.children array is empty');
+  variantCombinations.forEach((combination, index) => {
+    try {
+      instance.setProperties(combination);
+
+      // nested instance related functions
+
+      // get exposed instances
+      const exposedInstances = instance.exposedInstances;
+
+      // Function to clone instance and append to page
+      const cloneAndAppendInstance = () => {
+        // Create a clone of the instance
+        const resultInstance: InstanceNode = instance.clone();
+
+        // Set the position of the new instance
+        resultInstance.x = x;
+        resultInstance.y = y;
+
+        // Add the new instance to the current page
+        currentPage.appendChild(resultInstance);
+
+        // Update the position for the next instance
+        x += width + 10;
+        if (x >= 20000) {
+          x = 0;
+          y += height + 10;
+        }
+
+        // save the last position to the plugin datas
+        currentPage.setPluginData('x', x.toString());
+        currentPage.setPluginData('y', y.toString());
+      };
+
+      // Loop through each exposed instance and override its properties
+      if (exposedInstances && exposedInstances.length > 0) {
+        exposedInstances.forEach((exposedInstance) => {
+          // gen combinations for exposed instance with id and properties
+          const exposedInstanceCombinations = generateCombinationsFromProperties(
+            exposedInstance.componentProperties,
+            textDummy,
+            [{}]
+          );
+
+          // If there are no exposed instance combinations, create a clone of the instance and add it to the page
+          if (!exposedInstanceCombinations || exposedInstanceCombinations.length === 0) {
+            cloneAndAppendInstance();
+            return;
+          }
+
+          // Loop through each combination of exposed instance properties
+          exposedInstanceCombinations.forEach((exposedInstanceCombination: { [key: string]: { value: any } }) => {
+            // Remove type from the combination properties
+            const exposedInstanceProperties = Object.fromEntries(
+              Object.entries(exposedInstanceCombination).map(([key, { value }]) => [key, value])
+            );
+
+            try {
+              // set combination properties into instance
+              exposedInstance.setProperties(exposedInstanceProperties);
+            } catch (error) {
+              console.error(`Error setting properties for exposed instance: ${error.message}`);
+              return;
+            }
+
+            cloneAndAppendInstance();
+          });
+        });
+      } else {
+        cloneAndAppendInstance();
+      }
+    } catch (error) {
+      console.error(`[combination ${index + 1}] Error setting properties for instance: ${error.message}`);
       return;
     }
+  });
 
-    // Get the ComponentNode that matches the combination of variant properties
-    const component = node.children[0] as ComponentNode;
-    const instance = component.createInstance() as InstanceNode;
-
-    // If the number of combinations matches the number of child nodes, set properties without validation
-    if (variantCombinations.length === node.children.length) {
-      instance.setProperties(combination);
-    } else {
-      try {
-        // Set the variant properties for the instance
-        instance.setProperties(combination);
-      } catch (error) {
-        console.log(`Error setting properties for combination: ${node.id}`, error);
-        instance.remove(); // Remove the instance
-
-        continue; // Skip this combination and continue with the next one
-      }
-    }
-
-    // Set the position of the new instance
-    instance.x = x;
-    instance.y = y;
-
-    // Add the new instance to the current page
-    currentPage.appendChild(instance);
-
-    // Update the position for the next instance
-    x += width + 10; // Add some padding
-    if (x >= 20000) {
-      // If the row is full, start a new row
-      x = 0;
-      y += height + 10; // Add some padding
-    }
-  }
-
-  // Save the last position to the plugin data
-  currentPage.setPluginData('x', String(x));
-  currentPage.setPluginData('y', String(y));
+  // Remove the instance from the document
+  instance.remove();
 
   // Send completion message
   figma.ui.postMessage({
@@ -298,27 +233,156 @@ function getParentPage(node: BaseNode): PageNode {
   return figma.currentPage;
 }
 
-// Recursive function to find all exposed nested instances in a node
-function findExposedNestedInstances(node: SceneNode): InstanceNode[] {
-  let instances: InstanceNode[] = [];
-
-  if (node.type === 'INSTANCE') {
-    instances = [...instances, ...node.exposedInstances];
-  }
-
-  if ('children' in node) {
-    for (const child of node.children) {
-      instances = [...instances, ...findExposedNestedInstances(child)];
-    }
-  }
-
-  return instances;
-}
-
 // Function to handle 'navigate' message
 function handleNavigate(msg) {
   const node = figma.getNodeById(msg.nodeId) as ComponentSetNode;
   const page = getParentPage(node);
   figma.currentPage = page;
   figma.viewport.scrollAndZoomIntoView([node]);
+}
+
+// Function to generate all combinations of properties for a component set
+function generateCombinationsFromDefinitions(propertyDefinitions, textDummyCount: number, prevCombinations: any[]) {
+  let combinations = [...prevCombinations];
+
+  for (const property in propertyDefinitions) {
+    const { type, variantOptions } = propertyDefinitions[property];
+    const newCombinations = [];
+
+    if (type === 'BOOLEAN') {
+      for (const prevCombination of combinations) {
+        newCombinations.push({ ...prevCombination, [property]: true });
+        newCombinations.push({ ...prevCombination, [property]: false });
+      }
+    }
+
+    if (type === 'VARIANT') {
+      for (const prevCombination of combinations) {
+        for (const option of variantOptions) {
+          newCombinations.push({ ...prevCombination, [property]: option });
+        }
+      }
+    }
+
+    if (type === 'TEXT' && textDummyCount) {
+      const defaultValue = propertyDefinitions[property].defaultValue;
+      const defaultValueType = determineDefaultValueType(defaultValue);
+      const numWords = defaultValue.split(' ').length;
+      const averageWordLength = Math.round(defaultValue.length / numWords);
+      const dummyTexts = generateDummyText(defaultValueType, textDummyCount, numWords, averageWordLength);
+
+      for (const prevCombination of combinations) {
+        for (const dummyText of dummyTexts) {
+          newCombinations.push({ ...prevCombination, [property]: dummyText });
+        }
+      }
+    }
+
+    if (newCombinations.length > 0) {
+      combinations = newCombinations;
+    }
+  }
+
+  return combinations;
+}
+
+// New function to generate all combinations of properties from componentProperties
+function generateCombinationsFromProperties(componentProperties, textDummyCount: number, prevCombinations: any[]) {
+  let combinations = [...prevCombinations];
+
+  for (const property in componentProperties) {
+    const { type, value } = componentProperties[property];
+    const newCombinations = [];
+
+    if (type === 'BOOLEAN') {
+      for (const prevCombination of combinations) {
+        // Add two new combinations for each previous combination: one with the property set to true, and one with the property set to false
+        newCombinations.push({ ...prevCombination, [property]: { type, value: true } });
+        newCombinations.push({ ...prevCombination, [property]: { type, value: false } });
+      }
+    }
+
+    if (type === 'VARIANT') {
+      for (const prevCombination of combinations) {
+        newCombinations.push({ ...prevCombination, [property]: { type, value } });
+      }
+    }
+
+    if (type === 'TEXT' && textDummyCount) {
+      const actualValue = value;
+      const defaultValueType = determineDefaultValueType(actualValue);
+      const numWords = actualValue.split(' ').length;
+      const averageWordLength = Math.round(actualValue.length / numWords);
+      const dummyTexts = generateDummyText(defaultValueType, textDummyCount, numWords, averageWordLength);
+
+      for (const prevCombination of combinations) {
+        for (const dummyText of dummyTexts) {
+          newCombinations.push({ ...prevCombination, [property]: { type, value: dummyText } });
+        }
+      }
+    }
+
+    if (newCombinations.length > 0) {
+      combinations = newCombinations;
+    }
+  }
+
+  return combinations;
+}
+
+function calculateNestedInstanceCombinationsCount(componentSetNode: ComponentSetNode, textDummy: number) {
+  // Initialize an empty array to hold all nested instance combinations
+  let allNestedInstanceCombinations: string[] = [];
+
+  // Iterate over each child ComponentNode
+  for (const child of componentSetNode.children) {
+    if (child.type === 'COMPONENT') {
+      // Create an instance of the component
+      const instance = child.createInstance();
+
+      // Add the combinations of the instance's exposedInstances to the array
+      for (const exposedInstance of instance.exposedInstances) {
+        // Skip if exposedInstance's componentProperties value is {}
+        if (Object.keys(exposedInstance.componentProperties).length === 0) continue;
+
+        // Generate combinations for the exposed instance's properties
+        const combinations = generateCombinationsFromProperties(exposedInstance.componentProperties, textDummy, [{}]);
+
+        // Convert each combination to a string and add it to the array
+        for (const combination of combinations) {
+          allNestedInstanceCombinations.push(JSON.stringify(combination));
+        }
+      }
+
+      // Remove the instance from the document
+      instance.remove();
+    }
+  }
+
+  return allNestedInstanceCombinations;
+}
+
+// Function to count the number of text nodes in a component set
+function countTextNode(componentPropertyDefinitions, nestedInstancePropertyCombinations) {
+  let textNodeCount = 0;
+
+  for (const property in componentPropertyDefinitions) {
+    const { type } = componentPropertyDefinitions[property];
+
+    if (type === 'TEXT') {
+      textNodeCount++;
+    }
+  }
+
+  for (const combination of nestedInstancePropertyCombinations) {
+    for (const property in combination) {
+      const { type } = combination[property];
+
+      if (type === 'TEXT') {
+        textNodeCount++;
+      }
+    }
+  }
+
+  return textNodeCount;
 }
