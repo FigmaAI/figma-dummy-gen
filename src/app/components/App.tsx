@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Button, IconButton, Box, TextField, Tooltip } from '@mui/material';
-import { DataGrid, GridRowSelectionModel, GridToolbarContainer, GridColDef, GridCellParams } from '@mui/x-data-grid';
+import { Button, IconButton, Box, TextField, Typography } from '@mui/material';
+import { DataGrid, GridRowSelectionModel, GridToolbarContainer, GridColDef, GridCellParams, GridToolbar } from '@mui/x-data-grid';
 import { OpenInNew as OpenInNewIcon, Delete as DeleteIcon, AutoFixHigh as AutoFixHighIcon } from '@mui/icons-material';
 
 interface Row {
@@ -21,14 +21,16 @@ function App() {
   };
 
   const handleTextDummyChange = (e: React.ChangeEvent<HTMLInputElement>, id: string) => {
-    const newRows = rows.map((row) => {
+    const newDummyValue = Number(e.target.value);
+    const updatedRows = rows.map((row) => {
       if (row.id === id) {
-        return { ...row, textDummy: Number(e.target.value) };
+        return { ...row, textDummy: newDummyValue };
       }
       return row;
     });
-    setRows(newRows);
+    setRows(updatedRows);
   };
+
 
   const getComponentSet = () => {
     parent.postMessage({ pluginMessage: { type: 'get-component-set' } }, '*');
@@ -54,16 +56,27 @@ function App() {
             id: item.id,
             path: newPath,
             possibleDesigns: item.possibleDesigns,
-            textNodeCount: item.textNodeCount,
             documentationLinks: item.documentationLinks,
-            nestedInstanceCount: item.nestedInstanceCount,
-            nestedInstanceCombinationsCount: item.nestedInstanceCombinationsCount,
+            nestedInstanceDesignCount: item.nestedInstanceDesignCount,
+            textDummy: item.textDummy,
+            hasTextVariant: item.hasTextVariant,
+            textNodeCount: item.textNodeCount,
           };
         });
         setRows(updatedRows);
       } else if (type === 'gen-dummy-done' && nodeId) {
+        
+        // remove the row from the table
         handleDelete(nodeId);
-        generateDummyForSelectedRows(); // Generate dummy for the next row
+
+        // remove the selected row from the selection model
+        setRowSelectionModel(rowSelectionModel.filter((id) => id !== nodeId));
+
+
+        // if there are more rows to process, generate dummy for the next row
+        if (rowSelectionModel.length > 0) {
+          generateDummyForSelectedRows();
+        }
       }
     };
   }, [rows, rowSelectionModel]); // Added rowSelectionModel to the dependency array
@@ -87,38 +100,31 @@ function App() {
       ),
     },
     { field: 'possibleDesigns', headerName: 'Variants', width: 80 },
-    {field: 'nestedInstanceCombinationsCount' , headerName: 'Nested', width: 80},
     {
       field: 'textDummy',
       headerName: 'Dummy',
-      width: 96,
+      width: 104,
       renderCell: (params) => {
-        const hasTextNode = params.row.textNodeCount > 0;
+        if (!params.row.hasTextVariant) {
+          return null;
+        }
         return (
           <TextField
             type="number"
             size="small"
+            fullWidth
             inputProps={{ min: 1, max: 100 }}
             value={params.row.textDummy || 1}
-            disabled={!hasTextNode}
             onClick={(e) => e.stopPropagation()}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleTextDummyChange(e, params.row.id)}
+            InputProps={{
+              endAdornment: params.row.textNodeCount && (
+                <Typography variant="caption" color="disabled">
+                  &times; {params.row.textNodeCount}
+                </Typography>
+              ),
+            }}
           />
-        );
-      },
-    },
-    {
-      field: 'totalDesigns',
-      headerName: 'Total',
-      width: 80,
-      valueGetter: (params) =>
-        (params.row.possibleDesigns || 1) * (params.row.textDummy || 1) * (params.row.textNodeCount || 1),
-      renderCell: (params) => {
-        const tooltipText = `Total Designs = Variants(${params.row.possibleDesigns || 1}) * Dummy(${params.row.textDummy || 1}) * Text Node Count(${params.row.textNodeCount || 1})`;
-        return (
-          <Tooltip title={tooltipText}>
-            <Box>{params.value}</Box>
-          </Tooltip>
         );
       },
     },
@@ -152,7 +158,7 @@ function App() {
 
   const CustomToolbar = () => {
     if (rowSelectionModel.length === 0) {
-      return null;
+      return <GridToolbar showQuickFilter={true} />;
     }
 
     return (
