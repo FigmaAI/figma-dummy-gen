@@ -98,17 +98,19 @@ function App() {
       ),
     },
     // if nestedInstanceDesignCount is not null then show it else show possibleDesigns
-    {
-      field: 'nestedInstanceDesignCount',
-      headerName: 'Designs',
-      width: 96,
-      renderCell: (params) => {
-        if (params.row.nestedInstanceDesignCount) {
-          return params.row.nestedInstanceDesignCount;
-        }
-        return params.row.possibleDesigns;
-      },
-    },
+    // {
+    //   field: 'nestedInstanceDesignCount',
+    //   headerName: 'Designs',
+    //   width: 96,
+    //   renderCell: (params) => {
+    //     if (params.row.nestedInstanceDesignCount) {
+    //       return params.row.nestedInstanceDesignCount;
+    //     }
+    //     return params.row.possibleDesigns;
+    //   },
+    // },
+    {field: 'possibleDesigns', headerName: 'Variants', width: 80},
+    {field: 'nestedInstanceDesignCount', headerName: 'Nested', width: 80},
     {
       field: 'textDummy',
       headerName: 'Dummy',
