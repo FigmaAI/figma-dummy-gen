@@ -43,19 +43,35 @@ function handleGetComponentSet() {
 
 function getComponentSetData(node) {
   try {
-    const nestedInstancePropertyCombinations = calculateNestedInstanceCombinationsCount(node, 1);
+    const nestedInstanceCombinationsCount = calculateNestedInstanceCombinationsCount(node, 1);
     const possibleDesigns = generateCombinationsFromDefinitions(node.componentPropertyDefinitions, 1, [{}]);
-    const textNodeCount = countTextNode(
-      node.componentPropertyDefinitions,
-      nestedInstancePropertyCombinations.map((combination) => JSON.parse(combination))
-    );
+    let textNodeCount = countTextNode(node.componentPropertyDefinitions);
+
+    // Check if any child ComponentNode has a text variant
+    for (const child of node.children) {
+      if (child.type === 'COMPONENT') {
+        // Create an instance of the component
+        const instance = child.createInstance();
+
+        // Check if the instance has any exposed instances with text variants
+        for (const exposedInstance of instance.exposedInstances) {
+          if (countTextNode(exposedInstance.componentProperties) > 0) {
+            textNodeCount++;
+            break;
+          }
+        }
+
+        // Remove the instance from the document
+        instance.remove();
+      }
+    }
 
     return {
       id: node.id,
       name: node.name,
       path: getNodePath(node),
       possibleDesigns: possibleDesigns.length,
-      nestedInstanceDesignCount: nestedInstancePropertyCombinations.length || null,
+      nestedInstanceDesignCount: nestedInstanceCombinationsCount,
       documentationLinks: node.documentationLinks,
       key: node.key,
       textDummy: 1,
@@ -117,11 +133,14 @@ function handleGenDummy({ nodeId, textDummy }) {
   // Generate all combinations of variant properties
   const variantCombinations = generateCombinationsFromDefinitions(node.componentPropertyDefinitions, textDummy, [{}]);
 
+  // Initialize a counter for the total index
+  let totalIndex = 0;
+
   // Create an instance for each combination of variant properties
   variantCombinations.forEach((combination, index) => {
     try {
       instance.setProperties(combination);
-      instance.name = `${path} - ${index + 1}`; // Add index to the name
+      instance.name = path; // Add index to the name
 
       // nested instance related functions
 
@@ -133,6 +152,9 @@ function handleGenDummy({ nodeId, textDummy }) {
         // Create a clone of the instance
         const resultInstance: InstanceNode = instance.clone();
 
+        // Set the name using the total index
+        resultInstance.name += ` - ${++totalIndex}`;
+
         // Set the position of the new instance
         resultInstance.x = x;
         resultInstance.y = y;
@@ -142,7 +164,7 @@ function handleGenDummy({ nodeId, textDummy }) {
 
         // Update the position for the next instance
         x += width + 10;
-        if (x >= 20000) {
+        if (x >= 200000) {
           x = 0;
           y += height + 10;
         }
@@ -364,10 +386,8 @@ function calculateNestedInstanceCombinationsCount(componentSetNode: ComponentSet
         // Generate combinations for the exposed instance's properties
         const combinations = generateCombinationsFromProperties(exposedInstance.componentProperties, textDummy, [{}]);
 
-        // Convert each combination to a string and add it to the array
-        for (const combination of combinations) {
-          allNestedInstanceCombinations.push(JSON.stringify(combination));
-        }
+        // Add the combinations to the array
+        allNestedInstanceCombinations = [...allNestedInstanceCombinations, ...combinations];
       }
 
       // Remove the instance from the document
@@ -375,11 +395,12 @@ function calculateNestedInstanceCombinationsCount(componentSetNode: ComponentSet
     }
   }
 
-  return allNestedInstanceCombinations;
+  // Return the total number of combinations
+  return allNestedInstanceCombinations.length;
 }
 
 // Function to count the number of text nodes in a component set
-function countTextNode(componentPropertyDefinitions, nestedInstancePropertyCombinations) {
+function countTextNode(componentPropertyDefinitions) {
   let textNodeCount = 0;
 
   for (const property in componentPropertyDefinitions) {
@@ -387,16 +408,6 @@ function countTextNode(componentPropertyDefinitions, nestedInstancePropertyCombi
 
     if (type === 'TEXT') {
       textNodeCount++;
-    }
-  }
-
-  for (const combination of nestedInstancePropertyCombinations) {
-    for (const property in combination) {
-      const { type } = combination[property];
-
-      if (type === 'TEXT') {
-        textNodeCount++;
-      }
     }
   }
 
