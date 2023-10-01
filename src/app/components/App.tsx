@@ -50,11 +50,9 @@ function App() {
 
       if (type === 'component-set-data') {
         const updatedRows = data.map((item) => {
-          const pathElements = item.path.split('/');
-          const newPath = `${pathElements[1]}/${pathElements[pathElements.length - 1]}`;
           return {
             id: item.id,
-            path: newPath,
+            path: item.path,
             possibleDesigns: item.possibleDesigns,
             documentationLinks: item.documentationLinks,
             nestedInstanceDesignCount: item.nestedInstanceDesignCount,
@@ -99,7 +97,18 @@ function App() {
         </a>
       ),
     },
-    { field: 'possibleDesigns', headerName: 'Variants', width: 80 },
+    // if nestedInstanceDesignCount is not null then show it else show possibleDesigns
+    {
+      field: 'nestedInstanceDesignCount',
+      headerName: 'Designs',
+      width: 96,
+      renderCell: (params) => {
+        if (params.row.nestedInstanceDesignCount) {
+          return params.row.nestedInstanceDesignCount;
+        }
+        return params.row.possibleDesigns;
+      },
+    },
     {
       field: 'textDummy',
       headerName: 'Dummy',
