@@ -68,20 +68,33 @@ function getComponentSetData(node) {
   }
 }
 
-// Recursive function to get the path of a node
+// Recursive function to get the first and last element of a node path
 function getNodePath(node: SceneNode): string {
-  // If the parent is a PageNode, return the node's name
-  if (node.parent && node.parent.type === 'PAGE') {
-    return node.parent.name + '/' + node.name;
+  // Initialize an empty array to hold the path elements
+  let pathElements = [];
+
+  // Recursive function to get the path elements
+  function getPathElements(node: SceneNode) {
+    // If the parent is a PageNode, add the node's name to the start of the array
+    if (node.parent && node.parent.type === 'PAGE') {
+      pathElements.unshift(node.name);
+    }
+    // If the parent is a SceneNode (but not a PageNode), add the node's name to the start of the array and recurse
+    else if (node.parent && 'name' in node.parent) {
+      pathElements.unshift(node.name);
+      getPathElements(node.parent as SceneNode);
+    }
+    // If the node has no parent, add the node's name to the start of the array
+    else {
+      pathElements.unshift(node.name);
+    }
   }
-  // If the parent is a SceneNode (but not a PageNode), prepend the parent's name and recurse
-  else if (node.parent && 'name' in node.parent) {
-    return getNodePath(node.parent as SceneNode) + '/' + node.name;
-  }
-  // If the node has no parent, return the node's name
-  else {
-    return node.name;
-  }
+
+  // Call the recursive function to get the path elements
+  getPathElements(node);
+
+  // Return a string containing the first and last element of the path, separated by a slash
+  return `${pathElements[0]}/${pathElements[pathElements.length - 1]}`;
 }
 
 // Function to handle 'gen-dummy' message
@@ -94,6 +107,8 @@ function handleGenDummy({ nodeId, textDummy }) {
   const component = node.children[0] as ComponentNode;
   const instance = component.createInstance() as InstanceNode;
   const { width, height } = node;
+  // Set the name using getNodePath
+  const path = getNodePath(node);
 
   // Get the last position from the plugin datas
   let x = Number(currentPage.getPluginData('x')) || 0;
@@ -106,6 +121,7 @@ function handleGenDummy({ nodeId, textDummy }) {
   variantCombinations.forEach((combination, index) => {
     try {
       instance.setProperties(combination);
+      instance.name = `${path} - ${index + 1}`; // Add index to the name
 
       // nested instance related functions
 
