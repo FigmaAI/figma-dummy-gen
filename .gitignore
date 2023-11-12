@@ -4,3 +4,4 @@ settings.json
 yarn-error.log
 .vscode
 semantic_annotations/
+dataset/
