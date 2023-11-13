@@ -1,14 +1,16 @@
-# Figma Plugin React Template
-
-<p align='center'>
-    <img src='./markdown002.gif' width='600' alt='Figma Dummy Gen'>
-</p>
-
 # Figma-dummy-gen
 
-Figma-dummy-gen is a standalone project designed to support custom training for [Figma Autoname](https://figmaautomane.org/). This Figma plugin allows you to generate and extract images directly from your Figma design library, providing the necessary data for machine learning model training.
+<p align='center'>
+    <img src='./images/icon.png' alt='Figma Dummy Gen icon'>
+</p>
+Figma-dummy-gen is a standalone project designed to support custom training for [Figma Autoname](https://figmaautomane.org). This Figma plugin allows you to generate and extract images directly from your Figma design library, providing the necessary data for machine learning model training.
 
 ## Purpose
+
+<p align='center'>
+    <img src='./images/markdown002.gif' width='600' alt='Figma Dummy Gen'>
+</p>
+
 
 The primary purpose of Figma-dummy-gen is to facilitate the creation of a robust dataset for training your machine learning models. The quality and diversity of your dataset significantly impact the performance of your model. Figma-dummy-gen helps you enrich your dataset by generating a variety of images based on your Figma design library.
 

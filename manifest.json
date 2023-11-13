@@ -1,8 +1,17 @@
 {
   "name": "Figma Dummy Generator",
-  "id": "00000000",
+  "id": "1305913695776615924",
   "api": "1.0.0",
   "main": "dist/code.js",
   "ui": "dist/ui.html",
-  "editorType": ["figma"]
+  "networkAccess": {
+    "allowedDomains": [
+      "https://figma.com",
+      "https://fonts.googleapis.com",
+      "https://fonts.gstatic.com"
+    ]
+  },
+  "editorType": [
+    "figma"
+  ]
 }
