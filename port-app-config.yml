@@ -1,0 +1,27 @@
+{
+  "identifier": "repository",
+  "title": "figma-dummy-gen",
+  "icon": "Github",
+  "schema": {
+    "properties": {
+      "readme": {
+        "title": "README",
+        "type": "string",
+        "format": "markdown"
+      },
+      "url": {
+        "title": "https://github.com/dusskapark/figma-dummy-gen",
+        "type": "string",
+        "format": "url"
+      },
+      "defaultBranch": {
+        "title": "main",
+        "type": "string"
+      }
+    },
+    "required": []
+  },
+  "mirrorProperties": {},
+  "calculationProperties": {},
+  "relations": {}
+}
