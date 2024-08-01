@@ -4,7 +4,7 @@
     <img src='./images/icon.png' alt='Figma Dummy Gen icon'>
 </p>
 
-Figma-dummy-gen is a standalone project designed to support custom training for [Figma Autoname](https://automane.org/). This Figma plugin allows you to generate and extract images directly from your Figma design library, providing the necessary data for machine learning model training.
+Figma-dummy-gen is a standalone project designed to support custom training for [Figma Autoname](https://autoname.org/). This Figma plugin allows you to generate and extract images directly from your Figma design library, providing the necessary data for machine learning model training.
 
 ## Purpose
 
